@@ -284,13 +284,29 @@ if st.button("🚀 MULAI SCRAPE"):
                 writer,
                 index=False
             )
-
+        nama_file = re.sub(
+            r'[^a-zA-Z0-9_ ]',
+            '',
+            keyword
+        ).strip().replace(" ", "_")
+        
+        if not nama_file:
+            nama_file = "hasil_maps"
+        
+        nama_file = f"{nama_file}_{int(time.time())}.xlsx"
+        
         st.download_button(
             label="📥 Download Excel",
             data=output.getvalue(),
-            file_name=f"hasil_{int(time.time())}.xlsx",
+            file_name=nama_file,
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+        # st.download_button(
+        #     label="📥 Download Excel",
+        #     data=output.getvalue(),
+        #     file_name=f"hasil_{int(time.time())}.xlsx",
+        #     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        # )
 
     except Exception as e:
         st.error(f"Error: {e}")

@@ -1,3 +1,21 @@
+import sys
+
+# --- FIX UNTUK PYTHON 3.12+ (TERMASUK 3.13.3) ---
+try:
+    import distutils.version
+except ImportError:
+    import setuptools
+    try:
+        from setuptools import distutils
+        sys.modules['distutils'] = distutils
+    except ImportError:
+        pass
+# -----------------------------------------------
+
+import streamlit as st
+import undetected_chromedriver as uc
+# ... sisa kode scraper kamu ...
+
 import streamlit as st
 import undetected_chromedriver as uc
 from selenium.webdriver.common.by import By

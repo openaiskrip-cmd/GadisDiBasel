@@ -3,3 +3,4 @@ undetected-chromedriver
 pandas
 openpyxl
 selenium
+setuptools

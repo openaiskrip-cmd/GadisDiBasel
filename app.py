@@ -34,6 +34,7 @@ keyword = st.text_input(
 # =====================================================
 def buat_driver():
     options = uc.ChromeOptions()
+
     options.add_argument("--headless=new")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
@@ -66,17 +67,14 @@ def tunggu_nama(driver):
         '//div[@role="main"]//h1'
     ]
 
-    for _ in range(20):
+    for _ in range(15):
         for xp in kandidat:
             try:
-                el = driver.find_element(By.XPATH, xp)
-                txt = el.text.strip()
+                txt = driver.find_element(
+                    By.XPATH, xp
+                ).text.strip()
 
-                if txt and txt.lower() not in [
-                    "google maps",
-                    "hasil",
-                    "results"
-                ]:
+                if txt:
                     return txt
             except:
                 pass
@@ -90,40 +88,55 @@ def get_latlng(driver):
     url = driver.current_url
     html = driver.page_source
 
-    m1 = re.search(r'@([-0-9\.]+),([-0-9\.]+)', url)
+    m1 = re.search(
+        r'@([-0-9\.]+),([-0-9\.]+)',
+        url
+    )
+
     if m1:
         return m1.group(1), m1.group(2)
 
-    m2 = re.search(r'!3d([-0-9\.]+)!4d([-0-9\.]+)', html)
+    m2 = re.search(
+        r'!3d([-0-9\.]+)!4d([-0-9\.]+)',
+        html
+    )
+
     if m2:
         return m2.group(1), m2.group(2)
 
     return "N/A", "N/A"
 
 
-def scroll_habis(driver, status_box):
+# =====================================================
+# SCROLL
+# =====================================================
+def scroll_habis(driver, info_box):
     panel_xpath = '//div[@role="feed"]'
 
     wait = WebDriverWait(driver, 20)
+
     wait.until(
-        EC.presence_of_element_located((By.XPATH, panel_xpath))
+        EC.presence_of_element_located(
+            (By.XPATH, panel_xpath)
+        )
     )
 
-    panel = driver.find_element(By.XPATH, panel_xpath)
+    panel = driver.find_element(
+        By.XPATH, panel_xpath
+    )
 
     last_total = 0
     stuck = 0
     mulai = time.time()
 
-    status_box.info("🚀 Sedang scroll semua hasil...")
-
     while True:
+
         driver.execute_script("""
             arguments[0].scrollTop =
             arguments[0].scrollHeight
         """, panel)
 
-        time.sleep(3)
+        time.sleep(2)
 
         cards = driver.find_elements(
             By.CLASS_NAME,
@@ -132,30 +145,28 @@ def scroll_habis(driver, status_box):
 
         total = len(cards)
 
-        status_box.info(f"📌 Terdeteksi {total} tempat...")
+        info_box.info(
+            f"📌 Menemukan {total} tempat..."
+        )
 
         if total > last_total:
-            stuck = 0
             last_total = total
+            stuck = 0
         else:
             stuck += 1
 
         page = driver.page_source.lower()
 
         if (
-            "reached the end of the list" in page or
             "akhir daftar" in page or
-            "telah mencapai akhir daftar" in page
+            "reached the end" in page
         ):
-            status_box.success(f"✅ Sampai akhir daftar ({total} tempat)")
             break
 
         if stuck >= 5:
-            status_box.warning("⚠️ Tidak bertambah lagi")
             break
 
         if time.time() - mulai > 300:
-            status_box.warning("⏰ Timeout scroll")
             break
 
 
@@ -170,64 +181,57 @@ if st.button("🚀 MULAI SCRAPE"):
 
     hasil = []
 
-    progress_text = st.empty()
-    progress_bar = st.progress(0)
-    status_box = st.empty()
-
-    driver = buat_driver()
+    status = st.empty()
+    progress = st.progress(0)
 
     try:
+        driver = buat_driver()
+
+        status.info("🌍 Membuka Google Maps...")
+
         url = f"https://www.google.com/maps/search/{keyword.replace(' ','+')}"
-        progress_text.info("🌍 Membuka Google Maps...")
         driver.get(url)
 
         time.sleep(5)
 
-        scroll_habis(driver, status_box)
+        scroll_habis(driver, status)
 
         cards = driver.find_elements(
             By.CLASS_NAME,
             "hfpxzc"
         )
 
-        total = len(cards)
+        links = []
 
-        st.success(f"🔥 Total ditemukan {total} tempat")
+        for c in cards:
+            try:
+                href = c.get_attribute("href")
+                if href:
+                    links.append(href)
+            except:
+                pass
 
-        main_tab = driver.current_window_handle
+        total = len(links)
 
-        for i in range(total):
+        st.success(
+            f"🔥 Total ditemukan {total} tempat"
+        )
+
+        # =========================================
+        # LOOP SATU TAB (ANTI INVALID SESSION)
+        # =========================================
+        for i, href in enumerate(links):
 
             try:
-                cards = driver.find_elements(
-                    By.CLASS_NAME,
-                    "hfpxzc"
-                )
-
-                if i >= len(cards):
-                    break
-
-                href = cards[i].get_attribute("href")
-
-                if not href:
-                    continue
-
-                progress_text.info(
+                status.info(
                     f"📥 Mengambil data {i+1} / {total}"
                 )
 
-                progress_bar.progress(
+                progress.progress(
                     (i + 1) / total
                 )
 
-                driver.execute_script(
-                    "window.open(arguments[0]);",
-                    href
-                )
-
-                driver.switch_to.window(
-                    driver.window_handles[-1]
-                )
+                driver.get(href)
 
                 time.sleep(3)
 
@@ -255,23 +259,20 @@ if st.button("🚀 MULAI SCRAPE"):
                     "Longitude": lng
                 })
 
-                driver.close()
-                driver.switch_to.window(main_tab)
-
             except Exception as e:
+                continue
 
-                try:
-                    driver.close()
-                except:
-                    pass
-
-                driver.switch_to.window(main_tab)
-
-        progress_text.success("🎉 Selesai scrape!")
+        # =========================================
+        # HASIL
+        # =========================================
+        status.success("🎉 Scraping selesai!")
 
         df = pd.DataFrame(hasil)
 
-        st.dataframe(df, use_container_width=True)
+        st.dataframe(
+            df,
+            use_container_width=True
+        )
 
         output = io.BytesIO()
 
@@ -292,7 +293,10 @@ if st.button("🚀 MULAI SCRAPE"):
         )
 
     except Exception as e:
-        st.error(f"Terjadi error: {e}")
+        st.error(f"Error: {e}")
 
     finally:
-        driver.quit()
+        try:
+            driver.quit()
+        except:
+            pass
